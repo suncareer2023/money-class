@@ -1,1 +1,200 @@
+import React, { useState, useEffect } from 'react';
 
+const App = () => {
+  // 初期データ
+  const initialPrograms = {
+    AM: {
+      mon: "ストレスマネジメント講座",
+      tue: "社会人基礎力養成講座",
+      wed: "動画編集講座",
+      thu: "ライフスキル講座",
+      fri: "就職準備講座"
+    },
+    PM: {
+      mon: ["自習", "IT自習"],
+      tue: ["MOS実践講座", "自習", "IT自習"],
+      wed: ["Excel講座", "自習", "IT自習"],
+      thu: ["リモートメール講座"],  // 参加なしのチェックボタン不要
+      fri: ["IT講座", "自習"]
+    }
+  };
+
+  // 仮のユーザー (A~Yの20名)
+  const initialUsers = Array.from({ length: 20 }, (_, i) => ({
+    id: i + 1,
+    name: String.fromCharCode(65 + i) // A ~ Y
+  }));
+
+  const [users, setUsers] = useState(initialUsers);
+  const [programs, setPrograms] = useState(initialPrograms);
+  const [registrations, setRegistrations] = useState({});
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isStaffView, setIsStaffView] = useState(false);
+
+  // 登録情報を初期化
+  useEffect(() => {
+    const initialReg = {};
+    users.forEach(user => {
+      initialReg[user.id] = {
+        AM: { mon: false, tue: false, wed: false, thu: false, fri: false },
+        PM: { mon: null, tue: null, wed: null, thu: null, fri: null }, // 木曜午後の扱い修正
+        lunch: { mon: false, tue: false, wed: false, thu: false, fri: false }
+      };
+    });
+    setRegistrations(initialReg);
+  }, []);
+
+  // 午後の参加者リスト取得
+  const getPMParticipants = (day, program) => {
+    return users
+      .filter(user => registrations[user.id]?.PM[day] === program)
+      .map(user => user.name);
+  };
+
+  // ユーザースケジュールコンポーネント
+  const UserSchedule = ({ userId }) => {
+    const user = users.find(u => u.id === userId);
+    if (!user || !registrations[userId]) return <div>Loading...</div>;
+
+    return (
+      <div className="p-4 bg-white rounded shadow">
+        <h2 className="text-xl font-bold mb-4">{user.name}さんのスケジュール</h2>
+
+        <table className="w-full border-collapse mb-6">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="border p-2"></th>
+              <th className="border p-2">月</th>
+              <th className="border p-2">火</th>
+              <th className="border p-2">水</th>
+              <th className="border p-2">木</th>
+              <th className="border p-2">金</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="border p-2 font-bold">午前</td>
+              {['mon', 'tue', 'wed', 'thu', 'fri'].map(day => (
+                <td key={`am-${day}`} className="border p-2">
+                  <input
+                    type="checkbox"
+                    checked={registrations[userId].AM[day]}
+                    onChange={() =>
+                      setRegistrations(prev => ({
+                        ...prev,
+                        [userId]: {
+                          ...prev[userId],
+                          AM: { ...prev[userId].AM, [day]: !prev[userId].AM[day] }
+                        }
+                      }))
+                    }
+                  />
+                  <span className="ml-2">{programs.AM[day]}</span>
+                </td>
+              ))}
+            </tr>
+            <tr>
+              <td className="border p-2 font-bold">午後</td>
+              {['mon', 'tue', 'wed', 'thu', 'fri'].map(day => (
+                <td key={`pm-${day}`} className="border p-2">
+                  {programs.PM[day]?.map((program, idx) => (
+                    <div key={idx} className="flex items-center mb-1">
+                      <input
+                        type="radio"
+                        name={`pm-${day}`}
+                        checked={registrations[userId].PM[day] === program}
+                        onChange={() =>
+                          setRegistrations(prev => ({
+                            ...prev,
+                            [userId]: {
+                              ...prev[userId],
+                              PM: { ...prev[userId].PM, [day]: program }
+                            }
+                          }))
+                        }
+                      />
+                      <span className="ml-2">{program}</span>
+                    </div>
+                  ))}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+
+        <button onClick={() => setCurrentUser(null)} className="bg-blue-500 text-white px-4 py-2 rounded">
+          保存して戻る
+        </button>
+      </div>
+    );
+  };
+
+  // スタッフ確認画面
+  const StaffView = () => {
+    return (
+      <div className="p-4 bg-white rounded shadow">
+        <h2 className="text-xl font-bold mb-4">スタッフ確認ページ</h2>
+
+        <h3 className="text-lg font-semibold mt-4">午後のプログラム</h3>
+        <table className="w-full border-collapse mb-4">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="border p-2">曜日</th>
+              <th className="border p-2">プログラム</th>
+              <th className="border p-2">参加者数</th>
+              <th className="border p-2">参加者</th>
+            </tr>
+          </thead>
+          <tbody>
+            {['mon', 'tue', 'wed', 'thu', 'fri'].map(day =>
+              programs.PM[day]?.map(program => {
+                const participants = getPMParticipants(day, program);
+                return (
+                  <tr key={`${day}-${program}`}>
+                    <td className="border p-2">{day}</td>
+                    <td className="border p-2">{program}</td>
+                    <td className="border p-2">{participants.length}名</td>
+                    <td className="border p-2">{participants.join(', ')}</td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+
+        <button onClick={() => setIsStaffView(false)} className="bg-blue-500 text-white px-4 py-2 rounded">
+          ユーザー選択に戻る
+        </button>
+      </div>
+    );
+  };
+
+  // ユーザー選択画面
+  const UserSelection = () => {
+    return (
+      <div className="p-4 bg-white rounded shadow">
+        <h2 className="text-xl font-bold mb-4">サンキャリア高崎 プログラム申込</h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          {users.map(user => (
+            <button key={user.id} onClick={() => setCurrentUser(user.id)} className="bg-blue-500 text-white p-4 rounded">
+              {user.name}
+            </button>
+          ))}
+        </div>
+
+        <button onClick={() => setIsStaffView(true)} className="bg-green-500 text-white px-4 py-2 rounded">
+          スタッフ確認画面へ
+        </button>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-4">
+      {currentUser ? <UserSchedule userId={currentUser} /> : isStaffView ? <StaffView /> : <UserSelection />}
+    </div>
+  );
+};
+
+export default App;
